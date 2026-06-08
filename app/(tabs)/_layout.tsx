@@ -33,24 +33,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="forecast"
-        options={{
-          title: "Forecast",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cloud" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="setting"
-        options={{
-          title: "Setting",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" size={size} color={color} />
-          ),
-        }}
-      />
     </Tabs>
   );
 }

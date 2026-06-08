@@ -5,7 +5,13 @@ import { StyleSheet, Text, View } from "react-native";
 export type BarChartPoint = {
   label: string;
   value: number;
+  hasData?: boolean;
 };
+
+const BAR_TRACK_HEIGHT = 112;
+
+const formatChartValue = (value: number) =>
+  Number.isInteger(value) ? `${value}` : value.toFixed(value >= 10 ? 1 : 2);
 
 export default function SimpleBarChart({
   title,
@@ -30,10 +36,19 @@ export default function SimpleBarChart({
 
       <View style={styles.plot}>
         {data.map((item, index) => {
-          const height = Math.max((item.value / maxValue) * 128, item.value > 0 ? 4 : 0);
+          const hasData = item.hasData !== false;
+          const height = hasData
+            ? Math.max(
+                (item.value / maxValue) * BAR_TRACK_HEIGHT,
+                item.value > 0 ? 4 : 0
+              )
+            : 0;
 
           return (
             <View key={`${item.label}-${index}`} style={styles.barSlot}>
+              <Text style={[styles.valueLabel, !hasData && styles.emptyValue]}>
+                {hasData ? formatChartValue(item.value) : "-"}
+              </Text>
               <View style={styles.barTrack}>
                 <View style={[styles.bar, { height }]} />
               </View>
@@ -74,7 +89,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     justifyContent: "space-between",
     paddingHorizontal: 10,
-    paddingTop: 14,
+    paddingTop: 10,
     paddingBottom: 8,
   },
   barSlot: {
@@ -84,12 +99,23 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   barTrack: {
-    height: 128,
+    height: BAR_TRACK_HEIGHT,
     width: "58%",
     justifyContent: "flex-end",
     borderRadius: 8,
     backgroundColor: "rgba(255,255,255,0.05)",
     overflow: "hidden",
+  },
+  valueLabel: {
+    color: COLORS.text,
+    fontSize: 9,
+    fontWeight: "800",
+    marginBottom: 6,
+    minHeight: 12,
+    textAlign: "center",
+  },
+  emptyValue: {
+    color: COLORS.muted,
   },
   bar: {
     width: "100%",
@@ -99,8 +125,10 @@ const styles = StyleSheet.create({
   },
   label: {
     color: COLORS.muted,
-    fontSize: 10,
+    width: "100%",
+    fontSize: 9,
     fontWeight: "700",
     marginTop: 8,
+    textAlign: "center",
   },
 });

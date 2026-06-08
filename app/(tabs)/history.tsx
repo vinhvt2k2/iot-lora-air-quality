@@ -5,45 +5,91 @@ import AppHeader from "@/components/common/AppHeader";
 import Screen from "@/components/common/Screen";
 import { COLORS } from "@/constants/colors";
 import { useSelectedLocation } from "@/context/location-context";
-import { useFirebaseCurrentEnv } from "@/hooks/use-firebase-current-env";
-import { mockCurrent } from "@/mock/sample";
+import { useFirebaseHistory } from "@/hooks/use-firebase-history";
+import { mockHours } from "@/mock/sample";
+import { HourPoint } from "@/types/domain";
 import React from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 
-const buildHourlyData = (currentValue: number): BarChartPoint[] => {
-  const now = new Date();
+const HISTORY_POINT_COUNT = 12;
+const GATEWAY_INTERVAL_MS = 5 * 60 * 1000;
 
-  return Array.from({ length: 12 }).map((_, index) => {
-    const hour = new Date(now);
-    hour.setHours(now.getHours() - (11 - index));
+type HistorySlot = {
+  label: string;
+  point?: HourPoint;
+};
 
-    let value = 0;
-    if (index === 8) value = currentValue * 0.86;
-    if (index === 9) value = currentValue * 0.92;
-    if (index === 10) value = currentValue * 0.96;
-    if (index === 11) value = currentValue;
+const formatPointTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+const roundDownToGatewaySlot = (timeMs: number) =>
+  Math.floor(timeMs / GATEWAY_INTERVAL_MS) * GATEWAY_INTERVAL_MS;
+
+const buildHistorySlots = (
+  points: HourPoint[],
+  slotCount = HISTORY_POINT_COUNT
+): HistorySlot[] => {
+  const currentSlotTime = roundDownToGatewaySlot(Date.now());
+  const firstSlotTime =
+    currentSlotTime - (slotCount - 1) * GATEWAY_INTERVAL_MS;
+  const pointsBySlot = new Map<number, HourPoint>();
+
+  points.forEach((point) => {
+    const pointTime = new Date(point.hourISO).getTime();
+    if (!Number.isFinite(pointTime)) return;
+
+    const pointSlotTime = roundDownToGatewaySlot(pointTime);
+    if (pointSlotTime < firstSlotTime || pointSlotTime > currentSlotTime) {
+      return;
+    }
+
+    const currentPointInSlot = pointsBySlot.get(pointSlotTime);
+    if (
+      !currentPointInSlot ||
+      pointTime > new Date(currentPointInSlot.hourISO).getTime()
+    ) {
+      pointsBySlot.set(pointSlotTime, point);
+    }
+  });
+
+  return Array.from({ length: slotCount }).map((_, index) => {
+    const slotTime =
+      firstSlotTime + index * GATEWAY_INTERVAL_MS;
 
     return {
-      label: hour.getHours().toString().padStart(2, "0"),
-      value,
+      label: formatPointTime(new Date(slotTime).toISOString()),
+      point: pointsBySlot.get(slotTime),
     };
   });
 };
 
+const buildChartData = (
+  slots: HistorySlot[],
+  valueSelector: (point: HourPoint) => number
+): BarChartPoint[] =>
+  slots.map((slot) => ({
+    label: slot.label,
+    value: slot.point ? valueSelector(slot.point) : 0,
+    hasData: !!slot.point,
+  }));
+
 export default function HistoryScreen() {
   const { selectedLocation } = useSelectedLocation();
-  const { data, loading, error } = useFirebaseCurrentEnv(selectedLocation);
-  const current = data ?? {
-    ...mockCurrent,
-    city: selectedLocation,
-    locationId: selectedLocation,
-  };
+  const { data, loading, error } = useFirebaseHistory(
+    selectedLocation,
+    HISTORY_POINT_COUNT
+  );
+  const historyPoints = error ? mockHours : data;
+  const historySlots = buildHistorySlots(historyPoints);
 
   return (
     <Screen>
       <AppHeader
-        title="History (Hourly)"
-        subtitle={`${current.city} - AQI / CO / PM2.5 / PM10 theo giờ`}
+        title="History"
+        subtitle={`${selectedLocation} - 12 lần đo gần nhất`}
       />
       <ScrollView contentContainerStyle={styles.content}>
         {loading && (
@@ -57,21 +103,42 @@ export default function HistoryScreen() {
           </Text>
         )}
 
-        <SimpleBarChart title="AQI - Hourly" data={buildHourlyData(current.aqi)} />
         <SimpleBarChart
-          title="CO - Hourly"
-          data={buildHourlyData(current.co)}
+          title="AQI - Recent"
+          data={buildChartData(historySlots, (point) => point.aqi)}
+        />
+        <SimpleBarChart
+          title="CO - Recent"
+          data={buildChartData(historySlots, (point) => point.co)}
           unit="µg/m³"
         />
         <SimpleBarChart
-          title="PM2.5 - Hourly"
-          data={buildHourlyData(current.pm25)}
+          title="PM2.5 - Recent"
+          data={buildChartData(historySlots, (point) => point.pm25)}
           unit="µg/m³"
         />
         <SimpleBarChart
-          title="PM10 - Hourly"
-          data={buildHourlyData(current.pm10)}
+          title="PM10 - Recent"
+          data={buildChartData(historySlots, (point) => point.pm10)}
           unit="µg/m³"
+        />
+        <SimpleBarChart
+          title="UV Index - Recent"
+          data={buildChartData(historySlots, (point) => point.uvIndex)}
+        />
+        <SimpleBarChart
+          title="Temperature - Recent"
+          data={buildChartData(historySlots, (point) => point.temperatureC)}
+          unit="°C"
+        />
+        <SimpleBarChart
+          title="Humidity - Recent"
+          data={buildChartData(historySlots, (point) => point.humidity)}
+          unit="%"
+        />
+        <SimpleBarChart
+          title="Predicted AQI - Recent"
+          data={buildChartData(historySlots, (point) => point.predictedAqi)}
         />
       </ScrollView>
     </Screen>

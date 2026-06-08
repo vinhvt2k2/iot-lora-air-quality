@@ -27,4 +27,8 @@ export type HourPoint = {
   pm25: number;
   pm10: number;
   co: number;
+  temperatureC: number;
+  humidity: number;
+  uvIndex: number;
+  predictedAqi: number;
 };

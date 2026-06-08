@@ -1,5 +1,4 @@
 import AQIHeroCircle from "@/components/cards/AQIHeroCircle";
-import MetricTile from "@/components/cards/MetricTile";
 import { COLORS } from "@/constants/colors";
 import { useSelectedLocation } from "@/context/location-context";
 import { getActiveAlerts } from "@/features/alerts/rules";
@@ -15,6 +14,7 @@ import {
   ImageBackground,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -30,6 +30,49 @@ const formatUpdatedAt = (iso: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
+
+const getProgressColor = (value: number, maxValue: number) => {
+  const percent = maxValue > 0 ? value / maxValue : 0;
+
+  if (percent < 0.35) return COLORS.green;
+  if (percent < 0.65) return COLORS.yellow;
+  if (percent < 0.85) return COLORS.orange;
+  return COLORS.red;
+};
+
+function MetricProgressTile({
+  title,
+  value,
+  unit,
+  maxValue,
+}: {
+  title: string;
+  value: number;
+  unit?: string;
+  maxValue: number;
+}) {
+  const progress = Math.min(Math.max(value / maxValue, 0), 1);
+  const color = getProgressColor(value, maxValue);
+  const formattedValue = Number.isInteger(value) ? `${value}` : value.toFixed(1);
+
+  return (
+    <View style={styles.metricItem}>
+      <Text style={styles.metricTitle}>{title}</Text>
+      <Text style={styles.metricValue}>
+        {formattedValue}
+        {!!unit && <Text style={styles.metricUnit}> {unit}</Text>}
+      </Text>
+      <View style={styles.progressTrack}>
+        <View
+          style={[
+            styles.progressFill,
+            { width: `${progress * 100}%`, backgroundColor: color },
+          ]}
+        />
+      </View>
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const { selectedLocation, setSelectedLocation } = useSelectedLocation();
@@ -48,6 +91,15 @@ export default function HomeScreen() {
   };
   const alertCount = getActiveAlerts(current).length;
   const locationLoadError = error || locationsError;
+  const metricItems = [
+    { title: "PM2.5", value: current.pm25, unit: "µg/m³", maxValue: 100 },
+    { title: "PM10", value: current.pm10, unit: "µg/m³", maxValue: 200 },
+    { title: "CO", value: current.co, unit: "µg/m³", maxValue: 1000 },
+    { title: "UV", value: current.uvIndex, maxValue: 12 },
+    { title: "Nhiệt độ", value: current.temperatureC, unit: "°C", maxValue: 50 },
+    { title: "Độ ẩm", value: current.humidity, unit: "%", maxValue: 100 },
+    { title: "AQI dự đoán", value: current.predictedAqi, maxValue: 500 },
+  ];
 
   return (
     <ImageBackground
@@ -57,95 +109,73 @@ export default function HomeScreen() {
     >
       <View style={styles.overlay} />
       <SafeAreaView style={styles.safe}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerInfo}>
-            <Text style={styles.city}>{current.city}</Text>
-            <View style={styles.updateRow}>
-              <Text style={styles.update}>
-                Update: {formatUpdatedAt(current.updatedAt)}
-              </Text>
-              {loading && <ActivityIndicator size="small" color={COLORS.primary} />}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerInfo}>
+              <Text style={styles.city}>{current.city}</Text>
+              <View style={styles.updateRow}>
+                <Text style={styles.update}>
+                  Update: {formatUpdatedAt(current.updatedAt)}
+                </Text>
+                {loading && (
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                )}
+              </View>
+            </View>
+            <View style={styles.headerActions}>
+              <Pressable
+                style={styles.locationSelect}
+                onPress={() => setLocationModalVisible(true)}
+              >
+                <Ionicons name="location" size={18} color={COLORS.primary} />
+                <Text style={styles.locationText}>
+                  {getLocationTitle(selectedLocation)}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color={COLORS.sub} />
+              </Pressable>
+              <Pressable
+                style={styles.bell}
+                onPress={() => router.push("/notifications")}
+              >
+                <Ionicons name="notifications" size={22} color={COLORS.text} />
+                {alertCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{alertCount}</Text>
+                  </View>
+                )}
+              </Pressable>
             </View>
           </View>
-          <View style={styles.headerActions}>
-            <Pressable
-              style={styles.locationSelect}
-              onPress={() => setLocationModalVisible(true)}
-            >
-              <Ionicons name="location" size={18} color={COLORS.primary} />
-              <Text style={styles.locationText}>
-                {getLocationTitle(selectedLocation)}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={COLORS.sub} />
-            </Pressable>
-            <Pressable
-              style={styles.bell}
-              onPress={() => router.push("/notifications")}
-            >
-              <Ionicons name="notifications" size={22} color={COLORS.text} />
-              {alertCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{alertCount}</Text>
-                </View>
-              )}
-            </Pressable>
-          </View>
-        </View>
-        {!!locationLoadError && (
-          <Text style={styles.errorText}>
-            Không đọc được Firebase, đang hiển thị dữ liệu mẫu.
-          </Text>
-        )}
+          {!!locationLoadError && (
+            <Text style={styles.errorText}>
+              Không đọc được Firebase, đang hiển thị dữ liệu mẫu.
+            </Text>
+          )}
 
-        {/* AQI Card */}
-        <View style={styles.cardLarge}>
-          <Text style={styles.cardTitle}>Air Quality Index</Text>
-          <View style={styles.aqiRow}>
+          <View style={styles.aqiCard}>
             <AQIHeroCircle aqi={current.aqi} />
-            <View style={styles.legend}>
-              <Text style={styles.legendItem}>0-50 Good</Text>
-              <Text style={styles.legendItem}>51-100 Medium</Text>
-              <Text style={styles.legendItem}>101-150 Poor</Text>
-              <Text style={styles.legendItem}>151-200 Bad</Text>
-              <Text style={styles.legendItem}>201-300 Very bad</Text>
-              <Text style={styles.legendItem}>300+ Danger</Text>
-            </View>
-          </View>
-
-          <Text style={styles.aqiToday}>AQI – Today</Text>
-        </View>
-
-        {/* Weather row */}
-        <View style={styles.cardRow}>
-          <View style={styles.cardHalf}>
-            <Text style={styles.cardTitle}>Weather</Text>
-            <Text style={styles.bigValue}>
-              {current.temperatureC.toFixed(1)}°C
+            <Text style={styles.aqiAdvice}>
+              Chất lượng không khí được cập nhật theo dữ liệu hiện tại của{" "}
+              {current.city}.
             </Text>
           </View>
-          <View style={styles.cardHalf}>
-            <Text style={styles.cardTitle}>Humidity</Text>
-            <Text style={styles.bigValue}>{current.humidity.toFixed(1)}%</Text>
+
+          <View style={styles.metricsCard}>
+            {metricItems.map((item) => (
+              <MetricProgressTile
+                key={item.title}
+                title={item.title}
+                value={item.value}
+                unit={item.unit}
+                maxValue={item.maxValue}
+              />
+            ))}
           </View>
-        </View>
-
-        {/* Metric grid */}
-        <View style={styles.grid}>
-          <MetricTile title="PM2.5" value={current.pm25.toFixed(1)} unit="µg/m³" />
-          <MetricTile title="PM10" value={current.pm10.toFixed(1)} unit="µg/m³" />
-        </View>
-        <View style={styles.grid}>
-          <MetricTile title="UV index" value={current.uvIndex.toFixed(2)} />
-          <MetricTile title="CO" value={current.co.toFixed(2)} unit="µg/m³" />
-        </View>
-
-        <View style={styles.grid}>
-          <MetricTile title="Predicted AQI" value={current.predictedAqi} />
-          <View style={{ flex: 1 }} />
-        </View>
-
-        <Text style={styles.section}>AQI – Hourly</Text>
+        </ScrollView>
       </SafeAreaView>
       <Modal
         transparent
@@ -212,6 +242,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(9,15,30,0.68)",
   },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  content: { paddingBottom: 28 },
 
   header: {
     flexDirection: "row",
@@ -279,38 +310,66 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
 
-  cardLarge: {
+  aqiCard: {
     backgroundColor: COLORS.card2,
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 18,
     borderWidth: 1,
     borderColor: COLORS.line,
+    alignItems: "center",
   },
-  cardTitle: { color: COLORS.sub, fontSize: 13, fontWeight: "700" },
-  aqiRow: { flexDirection: "row", gap: 14, marginTop: 12 },
-  legend: { flex: 1, justifyContent: "center" },
-  legendItem: { color: COLORS.sub, marginVertical: 2, fontWeight: "600" },
-  aqiToday: { color: COLORS.sub, marginTop: 10, fontWeight: "700" },
-
-  cardRow: { flexDirection: "row", gap: 12, marginTop: 12 },
-  cardHalf: {
-    flex: 1,
+  aqiAdvice: {
+    color: COLORS.sub,
+    textAlign: "center",
+    lineHeight: 20,
+    marginTop: 14,
+    paddingHorizontal: 6,
+    fontWeight: "600",
+  },
+  metricsCard: {
+    marginTop: 14,
     backgroundColor: COLORS.card2,
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: COLORS.line,
+    padding: 16,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: 18,
   },
-  bigValue: {
-    color: COLORS.text,
-    fontSize: 26,
+  metricItem: {
+    width: "33.333%",
+    paddingHorizontal: 8,
+  },
+  metricTitle: {
+    color: COLORS.sub,
+    fontSize: 13,
     fontWeight: "800",
-    marginTop: 6,
   },
-
-  grid: { flexDirection: "row", gap: 12, marginTop: 12 },
-
-  section: { color: COLORS.sub, marginTop: 16, fontWeight: "700" },
+  metricValue: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+  metricUnit: {
+    color: COLORS.muted,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  progressTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(234,240,255,0.16)",
+    overflow: "hidden",
+    marginTop: 8,
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",

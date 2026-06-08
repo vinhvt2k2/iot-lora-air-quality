@@ -23,5 +23,9 @@ export const mockHours: HourPoint[] = Array.from({ length: 12 }).map((_, i) => {
     pm25: 20 + i * 1.2,
     pm10: 30 + i * 1.0,
     co: 50 + i * 2.1,
+    temperatureC: 28 + i * 0.2,
+    humidity: 62 + i * 0.4,
+    uvIndex: 1.8 + i * 0.15,
+    predictedAqi: 42 + i * 3,
   };
 });
